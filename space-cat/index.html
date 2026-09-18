@@ -35,6 +35,10 @@ body{display:grid;place-items:center;background:radial-gradient(ellipse at 25% 1
 #menuScreen .menu-meta>span{display:none}
 #menuScreen #helpBtn{position:absolute;left:17%;top:62%;width:32%;height:7%;padding:0;margin:0;opacity:.01;color:transparent;pointer-events:auto}
 #rankOverlay{position:absolute;left:51%;top:62%;width:32%;height:7%;padding:0;margin:0;opacity:.01;background:#fff;border:0;pointer-events:auto}
+#titleSoundOverlay{position:absolute;left:74%;top:2%;width:14%;height:7%;opacity:.01;background:#fff;pointer-events:auto}
+#bottomSoundOverlay{position:absolute;left:12%;top:69%;width:28%;height:5%;opacity:.01;background:#fff;pointer-events:auto}
+#retryOverlay{position:absolute;left:42%;top:69%;width:23%;height:5%;opacity:.01;background:#fff;pointer-events:auto}
+#fullscreenOverlay{position:absolute;left:67%;top:69%;width:22%;height:5%;opacity:.01;background:#fff;pointer-events:auto}
 </style>
 </head>
 <body>
@@ -180,6 +184,13 @@ function draw(){ctx.setTransform(canvas.width/WORLD_W,0,0,canvas.height/WORLD_H,
 function frame(now){const raw=lastTime?(now-lastTime)/1000:0;lastTime=now;const dt=Math.max(0,Math.min(.04,raw));if(E.state!=='paused'){visualTime+=dt;starTravel+=dt*(E.state==='playing'?1.7:.55);}if(raw>1&&E.state==='playing')pause('hidden');if(E.state==='playing')E.update(dt);if(E.state!=='paused'){for(const p of particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.t-=dt;p.vx*=.97;p.vy*=.97;}particles=particles.filter(p=>p.t>0);for(const f of floatTexts){f.y-=25*dt;f.t-=dt;}floatTexts=floatTexts.filter(f=>f.t>0);shake=Math.max(0,shake-dt);flash=Math.max(0,flash-dt);}if(toastUntil&&visualTime>toastUntil){$('toast').classList.remove('show');toastUntil=0;}hudClock+=dt;if(hudClock>.1){updateHUD();hudClock=0;}draw();requestAnimationFrame(frame);}
 
 const rankOverlay=document.createElement('button');rankOverlay.id='rankOverlay';rankOverlay.type='button';rankOverlay.setAttribute('aria-label','ランキング');rankOverlay.textContent='ランキング';$('menuScreen').appendChild(rankOverlay);rankOverlay.addEventListener('click',()=>{alert('自己ベスト\\nやさしい：'+saved.best.easy.toLocaleString('ja-JP')+'\\nふつう：'+saved.best.normal.toLocaleString('ja-JP'));});
+
+function addTitleOverlay(id,label,leftAction){const b=document.createElement('button');b.id=id;b.type='button';b.setAttribute('aria-label',label);b.textContent=label;$('menuScreen').appendChild(b);b.addEventListener('click',leftAction);return b;}
+function toggleTitleSound(){saved.sound=!saved.sound;persist();updateSound();if(saved.sound){audio.wake().then(()=>audio.play('ui'));}else audio.mute();}
+addTitleOverlay('titleSoundOverlay','サウンドON/OFF',toggleTitleSound);
+addTitleOverlay('bottomSoundOverlay','サウンドON/OFF',toggleTitleSound);
+addTitleOverlay('retryOverlay','リトライ',start);
+addTitleOverlay('fullscreenOverlay','全画面',async()=>{try{if(!document.fullscreenElement){const el=document.documentElement;if(el.requestFullscreen)await el.requestFullscreen();}else if(document.exitFullscreen)await document.exitFullscreen();}catch(_){showToast('全画面表示を利用できません','ブラウザの設定をご確認ください',2.5);}});
 if(!storageOK)$('storageNote').textContent='この環境では設定の保存を利用できません。ゲームはそのまま遊べます。';
 updateSound();updateMode();resize();requestAnimationFrame(frame);
 })();
