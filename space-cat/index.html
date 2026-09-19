@@ -49,7 +49,7 @@ body{display:grid;place-items:center;background:radial-gradient(ellipse at 25% 1
 /* In-app browser touch lock: keep gameplay swipes on the ship instead of the host page */
 html,body,.app,.arena,#game{overscroll-behavior:none}
 .arena,#game{touch-action:none!important;-ms-touch-action:none}
-body.game-touch-lock{position:fixed!important;inset:0!important;width:100%!important;height:100%!important;overflow:hidden!important;overscroll-behavior:none!important}html:has(body.game-touch-lock){overflow:hidden!important;overscroll-behavior:none!important}
+body.game-touch-lock{width:100%!important;height:100%!important;overflow:hidden!important;overscroll-behavior:none!important}html:has(body.game-touch-lock){overflow:hidden!important;overscroll-behavior:none!important}
 </style>
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-1H794E51YG"></script>
 <script>
@@ -185,29 +185,30 @@ function pause(reason='manual'){E.pause(reason);}
 function resume(){audio.wake();E.resume();lastTime=performance.now();}
 function resize(){const r=$('arena').getBoundingClientRect();const old=view;view={w:Math.max(1,r.width),h:Math.max(1,r.height),dpr:Math.min(2,window.devicePixelRatio||1)};canvas.width=Math.round(view.w*view.dpr);canvas.height=Math.round(view.h*view.dpr);if(E.state==='playing'&&Math.abs(old.w-view.w)>50)pause('resize');}
 function point(ev){const r=canvas.getBoundingClientRect();return{x:(ev.clientX-r.left)/r.width*WORLD_W,y:(ev.clientY-r.top)/r.height*WORLD_H};}
-canvas.addEventListener('pointerdown',ev=>{if(E.state!=='playing'||activePointer!==null||ev.button>0)return;ev.preventDefault();activePointer=ev.pointerId;pointerPoint=point(ev);try{canvas.setPointerCapture(ev.pointerId);}catch(_){}audio.wake();},{passive:false});
-canvas.addEventListener('pointermove',ev=>{if(E.state!=='playing'||ev.pointerId!==activePointer||!pointerPoint)return;ev.preventDefault();const next=point(ev);E.move((next.x-pointerPoint.x)*1.12,(next.y-pointerPoint.y)*1.12);pointerPoint=next;},{passive:false});
-const blockGameTouch=ev=>{if(E.state==='playing'&&ev.cancelable)ev.preventDefault();};
-// Threads Android in-app browser fallback: use Touch Events to move the ship directly.
-let touchPoint=null;
-function touchGamePoint(t){
- const r=canvas.getBoundingClientRect();
- return{x:(t.clientX-r.left)/r.width*WORLD_W,y:(t.clientY-r.top)/r.height*WORLD_H};
+// Unified mobile drag input. Prefer Touch Events on touch devices so Threads' Android
+// in-app browser does not run Pointer Events and Touch Events against each other.
+const useTouch=('ontouchstart' in window)||(navigator.maxTouchPoints>0);
+if(!useTouch){
+ canvas.addEventListener('pointerdown',ev=>{if(E.state!=='playing'||activePointer!==null||ev.button>0)return;ev.preventDefault();activePointer=ev.pointerId;pointerPoint=point(ev);try{canvas.setPointerCapture(ev.pointerId);}catch(_){}audio.wake();},{passive:false});
+ canvas.addEventListener('pointermove',ev=>{if(E.state!=='playing'||ev.pointerId!==activePointer||!pointerPoint)return;ev.preventDefault();const next=point(ev);E.move((next.x-pointerPoint.x)*1.12,(next.y-pointerPoint.y)*1.12);pointerPoint=next;},{passive:false});
 }
+let touchPoint=null,touchId=null;
+function touchGamePoint(t){const r=canvas.getBoundingClientRect();return{x:(t.clientX-r.left)/r.width*WORLD_W,y:(t.clientY-r.top)/r.height*WORLD_H};}
+function trackedTouch(list){for(const t of list)if(t.identifier===touchId)return t;return null;}
 canvas.addEventListener('touchstart',ev=>{
- if(E.state!=='playing'||!ev.touches.length)return;
+ if(!useTouch||E.state!=='playing'||touchId!==null||!ev.changedTouches.length)return;
  if(ev.cancelable)ev.preventDefault();
- touchPoint=touchGamePoint(ev.touches[0]);
- audio.wake();
+ const t=ev.changedTouches[0];touchId=t.identifier;touchPoint=touchGamePoint(t);audio.wake();
 },{passive:false});
 canvas.addEventListener('touchmove',ev=>{
- if(E.state!=='playing'||!ev.touches.length)return;
+ if(!useTouch||E.state!=='playing'||touchId===null)return;
+ const t=trackedTouch(ev.touches);if(!t)return;
  if(ev.cancelable)ev.preventDefault();
- const next=touchGamePoint(ev.touches[0]);
+ const next=touchGamePoint(t);
  if(touchPoint)E.move((next.x-touchPoint.x)*1.12,(next.y-touchPoint.y)*1.12);
  touchPoint=next;
 },{passive:false});
-const endTouch=ev=>{if(E.state==='playing'&&ev.cancelable)ev.preventDefault();touchPoint=null;};
+const endTouch=ev=>{if(!useTouch||touchId===null)return;const t=trackedTouch(ev.changedTouches);if(!t)return;if(E.state==='playing'&&ev.cancelable)ev.preventDefault();touchId=null;touchPoint=null;};
 canvas.addEventListener('touchend',endTouch,{passive:false});
 canvas.addEventListener('touchcancel',endTouch,{passive:false});
 const pointerEnd=ev=>{if(ev.pointerId===activePointer)resetPointer();};canvas.addEventListener('pointerup',pointerEnd);canvas.addEventListener('pointercancel',pointerEnd);canvas.addEventListener('lostpointercapture',ev=>{if(ev.pointerId===activePointer){activePointer=null;pointerPoint=null;}});canvas.addEventListener('contextmenu',ev=>ev.preventDefault());
