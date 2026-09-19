@@ -48,7 +48,8 @@ body{display:grid;place-items:center;background:radial-gradient(ellipse at 25% 1
 
 /* In-app browser touch lock: keep gameplay swipes on the ship instead of the host page */
 html,body,.app,.arena,#game{overscroll-behavior:none}
-.arena,#game{touch-action:none!important;-ms-touch-action:none}
+.arena,#game{touch-action:none!important;-ms-touch-action:none;-webkit-user-drag:none}
+body.game-touch-lock,.game-touch-lock .app,.game-touch-lock .arena,.game-touch-lock #game{overscroll-behavior:none!important;touch-action:none!important}
 body.game-touch-lock{width:100%!important;height:100%!important;overflow:hidden!important;overscroll-behavior:none!important}html:has(body.game-touch-lock){overflow:hidden!important;overscroll-behavior:none!important}
 </style>
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-1H794E51YG"></script>
@@ -180,7 +181,7 @@ function syncScreens(reason){resetPointer();for(const id of ['menuScreen','pause
 function addParticles(x,y,color,count=12,big=false){for(let i=0;i<count&&particles.length<200;i++){const a=Math.random()*Math.PI*2,s=(big?240:120)*(.25+Math.random());particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,t:.3+Math.random()*.4,max:.7,color,r:big?2+Math.random()*4:1+Math.random()*2});}}
 function handleEvent(e){if(e.type==='state')syncScreens(e.reason);else if(e.type==='stage')showToast(STAGES[e.stage][1],String(e.stage+1).padStart(2,'0')+' / '+STAGES[e.stage][0]);else if(e.type==='boss'){showToast('巨大戦艦、接近！','BOSS / CHU MOTHER',3.2);audio.play('hurt');}else if(e.type==='upgrade'){showToast(e.power===2?'3方向ショット！':'レーザー、発射！','WEAPON LEVEL '+e.power);audio.play('pickup');}else if(e.type==='sound')audio.play(e.name);else if(e.type==='explosion'){addParticles(e.x,e.y,'#ffc18d',e.big?30:15,e.big);audio.play('boom');}else if(e.type==='pickup'){addParticles(e.x,e.y,'#9bf7d7',12);audio.play('pickup');floatTexts.push({x:e.x,y:e.y,text:e.kind==='power'?'POWER UP':e.kind==='heal'?'SHIELD +1':'BURST +1',t:1});}else if(e.type==='hurt'){addParticles(e.x,e.y,'#ffa3a9',24);shake=.23;flash=.15;audio.play('hurt');}else if(e.type==='burst'){addParticles(e.x,e.y,'#a6ffe1',38,true);shake=.15;audio.play('burst');}if(['state','pickup','hurt','upgrade','burst'].includes(e.type))updateHUD();}
 function updateHUD(){const p=E.player;$('score').textContent=String(Math.floor(E.score)).padStart(6,'0');$('lives').textContent='♥'.repeat(p.hp)+'·'.repeat(p.maxHp-p.hp);$('lives').setAttribute('aria-label','シールド'+p.hp);$('weaponText').textContent=['','Lv.1 ツイン','Lv.2 3方向','Lv.3 レーザー'][p.power];$('stageText').textContent=E.boss?'BOSS / FINAL MISSION':String(E.stage+1).padStart(2,'0')+' / '+STAGES[E.stage][0];$('progress').style.width=Math.min(100,E.time/BOSS_AT*100)+'%';$('bossBox').hidden=!E.boss;if(E.boss){const n=Math.max(0,E.boss.hp/E.boss.maxHp*100);$('bossHealth').style.width=n+'%';$('bossPercent').textContent=Math.ceil(n)+'%';}$('burstText').textContent='バースト ×'+p.charges;$('burstBtn').disabled=p.charges<=0||E.state!=='playing';$('burstBtn').setAttribute('aria-label','バーストを使う、残り'+p.charges+'回');$('flightTip').style.opacity=E.time<8?'1':'0';}
-function start(){document.body.classList.add('game-touch-lock');gtag('event','game_start',{game_name:'space_cat',difficulty:saved.mode});particles=[];floatTexts=[];shake=0;flash=0;resetPointer();audio.wake();E.start(saved.mode);lastTime=performance.now();updateHUD();}
+function start(){document.body.classList.add('game-touch-lock');window.scrollTo(0,0);gtag('event','game_start',{game_name:'space_cat',difficulty:saved.mode});particles=[];floatTexts=[];shake=0;flash=0;resetPointer();audio.wake();E.start(saved.mode);lastTime=performance.now();updateHUD();}
 function pause(reason='manual'){E.pause(reason);}
 function resume(){audio.wake();E.resume();lastTime=performance.now();}
 function resize(){const r=$('arena').getBoundingClientRect();const old=view;view={w:Math.max(1,r.width),h:Math.max(1,r.height),dpr:Math.min(2,window.devicePixelRatio||1)};canvas.width=Math.round(view.w*view.dpr);canvas.height=Math.round(view.h*view.dpr);if(E.state==='playing'&&Math.abs(old.w-view.w)>50)pause('resize');}
@@ -211,6 +212,14 @@ canvas.addEventListener('touchmove',ev=>{
 const endTouch=ev=>{if(!useTouch||touchId===null)return;const t=trackedTouch(ev.changedTouches);if(!t)return;if(E.state==='playing'&&ev.cancelable)ev.preventDefault();touchId=null;touchPoint=null;};
 canvas.addEventListener('touchend',endTouch,{passive:false});
 canvas.addEventListener('touchcancel',endTouch,{passive:false});
+// Threads' in-app browser is a draggable bottom sheet. Keep gameplay touches owned by
+// the page and snap any host-induced viewport scroll back immediately.
+const lockGameplayScroll=()=>{
+ if(E.state==='playing'&&(window.scrollX!==0||window.scrollY!==0))window.scrollTo(0,0);
+};
+window.addEventListener('scroll',lockGameplayScroll,{passive:true});
+window.visualViewport?.addEventListener('scroll',lockGameplayScroll,{passive:true});
+
 const pointerEnd=ev=>{if(ev.pointerId===activePointer)resetPointer();};canvas.addEventListener('pointerup',pointerEnd);canvas.addEventListener('pointercancel',pointerEnd);canvas.addEventListener('lostpointercapture',ev=>{if(ev.pointerId===activePointer){activePointer=null;pointerPoint=null;}});canvas.addEventListener('contextmenu',ev=>ev.preventDefault());
 $('startBtn').addEventListener('click',()=>{$('difficultyScreen').hidden=false;$('chooseEasyBtn').focus();});
 $('chooseEasyBtn').addEventListener('click',()=>{saved.mode='easy';persist();updateMode();$('difficultyScreen').hidden=true;start();});
