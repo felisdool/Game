@@ -49,7 +49,7 @@ body{display:grid;place-items:center;background:radial-gradient(ellipse at 25% 1
 /* In-app browser touch lock: keep gameplay swipes on the ship instead of the host page */
 html,body,.app,.arena,#game{overscroll-behavior:none}
 .arena,#game{touch-action:none!important;-ms-touch-action:none}
-body.game-touch-lock{position:fixed;inset:0;width:100%;overflow:hidden}
+body.game-touch-lock{position:fixed!important;inset:0!important;width:100%!important;height:100%!important;overflow:hidden!important;overscroll-behavior:none!important}html:has(body.game-touch-lock){overflow:hidden!important;overscroll-behavior:none!important}
 </style>
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-1H794E51YG"></script>
 <script>
@@ -188,7 +188,7 @@ function point(ev){const r=canvas.getBoundingClientRect();return{x:(ev.clientX-r
 canvas.addEventListener('pointerdown',ev=>{if(E.state!=='playing'||activePointer!==null||ev.button>0)return;ev.preventDefault();activePointer=ev.pointerId;pointerPoint=point(ev);try{canvas.setPointerCapture(ev.pointerId);}catch(_){}audio.wake();},{passive:false});
 canvas.addEventListener('pointermove',ev=>{if(E.state!=='playing'||ev.pointerId!==activePointer||!pointerPoint)return;ev.preventDefault();const next=point(ev);E.move((next.x-pointerPoint.x)*1.12,(next.y-pointerPoint.y)*1.12);pointerPoint=next;},{passive:false});
 const blockGameTouch=ev=>{if(E.state==='playing'&&ev.cancelable)ev.preventDefault();};
-canvas.addEventListener('touchstart',blockGameTouch,{passive:false});canvas.addEventListener('touchmove',blockGameTouch,{passive:false});
+// Threads / Instagram-style in-app browsers can consume a swipe before Canvas sees it.\n// Block the browser gesture at document level during gameplay, in capture phase.\ncanvas.addEventListener('touchstart',blockGameTouch,{passive:false});\ncanvas.addEventListener('touchmove',blockGameTouch,{passive:false});\ndocument.addEventListener('touchstart',blockGameTouch,{passive:false,capture:true});\ndocument.addEventListener('touchmove',blockGameTouch,{passive:false,capture:true});\ndocument.addEventListener('touchend',blockGameTouch,{passive:false,capture:true});
 const pointerEnd=ev=>{if(ev.pointerId===activePointer)resetPointer();};canvas.addEventListener('pointerup',pointerEnd);canvas.addEventListener('pointercancel',pointerEnd);canvas.addEventListener('lostpointercapture',ev=>{if(ev.pointerId===activePointer){activePointer=null;pointerPoint=null;}});canvas.addEventListener('contextmenu',ev=>ev.preventDefault());
 $('startBtn').addEventListener('click',()=>{$('difficultyScreen').hidden=false;$('chooseEasyBtn').focus();});
 $('chooseEasyBtn').addEventListener('click',()=>{saved.mode='easy';persist();updateMode();$('difficultyScreen').hidden=true;start();});
